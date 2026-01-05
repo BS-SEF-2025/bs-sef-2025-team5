@@ -57,9 +57,151 @@ class LibraryCounter:
         log_entry = f"{timestamp} | IN: {in_count} | OUT: {out_count} | Inside: {in_count - out_count}\n"
         with open(self.log_file, "a") as f:
             f.write(log_entry)
-       
-    def run(self):
-        print("System Initialized. Waiting for modules.")
+
+    def run(self, log_interval=60):
+        print("\n" + "=" * 50)
+        print("LIBRARY COUNTER - SIMPLE CROSSING")
+        print("=" * 50)
+        print("-> = IN    <- = OUT")
+        if not self.headless:
+            print("Keys: q=quit  r=reset  s=swap")
+        print("=" * 50 + "\n")
+
+        last_log_time = time.time()
+        last_print_time = time.time()
+        swap_counts = False
+
+        fps_counter = 0
+        fps_timer = time.time()
+        fps = 0
+
+        try:
+            while True:
+                ret, frame = self.cap.read()
+                if not ret:
+                    continue
+
+                fps_counter += 1
+
+                if time.time() - fps_timer >= 1.0:
+                    fps = fps_counter
+                    fps_counter = 0
+                    fps_timer = time.time()
+
+                # Run detection with tracking
+                results = self.model.track(frame, classes=[0], persist=True,
+                                           verbose=False, conf=0.25)
+
+                current_time = time.time()
+
+                # Clean old crossed IDs (remove cooldown entries older than cooldown time)
+                self.crossed_ids = {k: v for k, v in self.crossed_ids.items()
+                                    if current_time - v < self.cooldown}
+
+                # Process detections
+                if results and len(results) > 0 and results[0].boxes is not None:
+                    boxes = results[0].boxes
+
+                    for box in boxes:
+                        # Get center x position
+                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                        center_x = (x1 + x2) / 2
+                        center_y = (y1 + y2) / 2
+
+                        # Get track ID
+                        if box.id is not None:
+                            track_id = int(box.id[0])
+                        else:
+                            continue  # Skip if no track ID
+
+                        # Check if this person crossed the line
+                        if track_id in self.prev_positions:
+                            prev_x = self.prev_positions[track_id]
+
+                            # Check if crossed and not in cooldown
+                            if track_id not in self.crossed_ids:
+                                # Crossed from left to right (IN)
+                                if prev_x < self.line_x and center_x >= self.line_x:
+                                    if swap_counts:
+                                        self.out_count += 1
+                                    else:
+                                        self.in_count += 1
+                                    self.crossed_ids[track_id] = current_time
+                                    print(f"*** IN *** (total: {self.in_count})")
+
+                                # Crossed from right to left (OUT)
+                                elif prev_x > self.line_x and center_x <= self.line_x:
+                                    if swap_counts:
+                                        self.in_count += 1
+                                    else:
+                                        self.out_count += 1
+                                    self.crossed_ids[track_id] = current_time
+                                    print(f"*** OUT *** (total: {self.out_count})")
+
+                        # Update position
+                        self.prev_positions[track_id] = center_x
+
+                # Get annotated frame
+                result_frame = results[0].plot() if results else frame.copy()
+
+                # Print status every 5 seconds
+                if time.time() - last_print_time >= 5:
+                    inside = max(0, self.in_count - self.out_count)
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] "
+                          f"IN: {self.in_count} | OUT: {self.out_count} | "
+                          f"Inside: {inside} | FPS: {fps}")
+                    last_print_time = time.time()
+
+                # Log periodically
+                if time.time() - last_log_time >= log_interval:
+                    self.log_count(self.in_count, self.out_count)
+                    last_log_time = time.time()
+
+                # Display
+                if not self.headless:
+                    # Draw vertical counting line
+                    cv2.line(result_frame, (self.line_x, 0), (self.line_x, self.frame_height),
+                             (0, 255, 255), 2)
+
+                    inside = max(0, self.in_count - self.out_count)
+                    cv2.rectangle(result_frame, (5, 5), (150, 85), (0, 0, 0), -1)
+                    cv2.putText(result_frame, f"IN:  {self.in_count}", (10, 25),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    cv2.putText(result_frame, f"OUT: {self.out_count}", (10, 50),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                    cv2.putText(result_frame, f"NOW: {inside}", (10, 75),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+
+                    cv2.putText(result_frame, f"FPS: {fps}", (self.frame_width - 80, 20),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+                    cv2.imshow("Library Counter", result_frame)
+
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        break
+                    elif key == ord('r'):
+                        self.in_count = 0
+                        self.out_count = 0
+                        self.prev_positions = {}
+                        self.crossed_ids = {}
+                        print("Counts reset!")
+                    elif key == ord('s'):
+                        swap_counts = not swap_counts
+                        print(f"Swapped: {swap_counts}")
+
+        except KeyboardInterrupt:
+            print("\nStopped")
+
+        finally:
+            self.cleanup()
+            self.log_count(self.in_count, self.out_count)
+            print(f"\nFINAL: IN={self.in_count} OUT={self.out_count}")
+
+    def cleanup(self):
+        if self.cap:
+            self.cap.release()
+        cv2.destroyAllWindows()
 
 
 def main():
