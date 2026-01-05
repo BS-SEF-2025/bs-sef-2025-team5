@@ -131,4 +131,61 @@ router.get('/latest', async (req, res) => {
     }
 });
 
+
+// GET /api/occupancy/today - Get today's summary
+router.get('/today', async (req, res) => {
+    try {
+        // Get start of today (UTC)
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+
+        // Get all records from today
+        const todayRecords = await Occupancy.find({
+            timestamp: { $gte: today }
+        }).sort({ timestamp: -1 });
+
+        if (todayRecords.length === 0) {
+            return res.json({
+                success: true,
+                data: {
+                    date: today.toISOString().split('T')[0],
+                    total_in: 0,
+                    total_out: 0,
+                    current_inside: 0,
+                    peak_count: 0,
+                    records_today: 0
+                }
+            });
+        }
+
+        // Calculate totals
+        const total_in = todayRecords.filter(r => r.direction === 'IN').length;
+        const total_out = todayRecords.filter(r => r.direction === 'OUT').length;
+        
+        // Current count (from latest record)
+        const current_inside = todayRecords[0].current_count || 0;
+        
+        // Peak count (highest current_count today)
+        const peak_count = Math.max(...todayRecords.map(r => r.current_count || 0));
+
+        res.json({
+            success: true,
+            data: {
+                date: today.toISOString().split('T')[0],
+                total_in,
+                total_out,
+                current_inside,
+                peak_count,
+                records_today: todayRecords.length
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting today stats:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
 module.exports = router;
