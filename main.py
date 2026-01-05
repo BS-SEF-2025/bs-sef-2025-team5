@@ -3,6 +3,7 @@ import cv2
 import time
 import datetime
 import os
+import requests
 import numpy as np
 os.environ["QT_QPA_PLATFORM"] = "xcb"
 from ultralytics import YOLO
@@ -57,6 +58,24 @@ class LibraryCounter:
         log_entry = f"{timestamp} | IN: {in_count} | OUT: {out_count} | Inside: {in_count - out_count}\n"
         with open(self.log_file, "a") as f:
             f.write(log_entry)
+            
+    def sync_to_api(self, direction=None):
+        """Send count to backend API"""
+        try:
+            current_count = max(0, self.in_count - self.out_count)
+            data = {
+                "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+                "current_count": current_count,
+                "direction": direction
+            }
+            response = requests.post(
+                "http://192.168.68.72:3000/api/occupancy/update",
+                json=data,
+                timeout=5
+            )
+            print(f"[API] Synced: {current_count} inside")
+        except Exception as e:
+            print(f"[API] Sync failed: {e}")
 
     def run(self, log_interval=60):
         print("\n" + "=" * 50)
@@ -128,6 +147,7 @@ class LibraryCounter:
                                         self.in_count += 1
                                     self.crossed_ids[track_id] = current_time
                                     print(f"*** IN *** (total: {self.in_count})")
+                                    self.sync_to_api("IN")
 
                                 # Crossed from right to left (OUT)
                                 elif prev_x > self.line_x and center_x <= self.line_x:
@@ -137,6 +157,7 @@ class LibraryCounter:
                                         self.out_count += 1
                                     self.crossed_ids[track_id] = current_time
                                     print(f"*** OUT *** (total: {self.out_count})")
+                                    self.sync_to_api("OUT")
 
                         # Update position
                         self.prev_positions[track_id] = center_x
