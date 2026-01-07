@@ -133,6 +133,7 @@ router.get('/latest', async (req, res) => {
 
 
 // GET /api/occupancy/today - Get today's summary
+// GET /api/occupancy/today - Get today's summary
 router.get('/today', async (req, res) => {
     try {
         const today = new Date();
@@ -200,7 +201,7 @@ router.get('/today', async (req, res) => {
                 avg_today,
                 records_today: todayRecords.length
             }
-        });
+        });z
 
     } catch (error) {
         console.error('Error getting today stats:', error);
@@ -252,6 +253,122 @@ router.get('/today-trend', async (req, res) => {
 
     } catch (error) {
         console.error('Error getting today trend:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
+
+
+// GET /api/occupancy/weekly - Get data for a specific week
+router.get('/weekly', async (req, res) => {
+    try {
+        // Get week start date from query param, default to current week
+        let startDate;
+        if (req.query.week) {
+            startDate = new Date(req.query.week);
+        } else {
+            // Get start of current week (Sunday)
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - startDate.getDay());
+        }
+        startDate.setHours(0, 0, 0, 0);
+
+        // End of week (Saturday)
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 7);
+
+        // Get all records for the week
+        const weekRecords = await Occupancy.find({
+            timestamp: { $gte: startDate, $lt: endDate }
+        }).sort({ timestamp: 1 });
+
+        // Group records by day
+        const dailyData = {};
+        
+        weekRecords.forEach(record => {
+            const date = new Date(record.timestamp);
+            const dateKey = date.toISOString().split('T')[0];
+            
+            if (!dailyData[dateKey]) {
+                dailyData[dateKey] = {
+                    date: dateKey,
+                    day: date.toLocaleDateString('en-US', { weekday: 'long' }),
+                    records: [],
+                    hourly_counts: {}
+                };
+            }
+            
+            dailyData[dateKey].records.push(record);
+            
+            // Track counts by hour
+            const hour = date.getHours();
+            if (!dailyData[dateKey].hourly_counts[hour]) {
+                dailyData[dateKey].hourly_counts[hour] = [];
+            }
+            dailyData[dateKey].hourly_counts[hour].push(record.current_count || 0);
+        });
+
+        // Calculate busiest and freest hours for each day
+        const weekSummary = Object.values(dailyData).map(day => {
+            const hourlyAvg = {};
+            
+            // Calculate average count per hour
+            Object.entries(day.hourly_counts).forEach(([hour, counts]) => {
+                hourlyAvg[hour] = counts.reduce((a, b) => a + b, 0) / counts.length;
+            });
+
+            const hours = Object.entries(hourlyAvg);
+            
+            if (hours.length === 0) {
+                return {
+                    date: day.date,
+                    day: day.day,
+                    busiest_hour: null,
+                    freest_hour: null,
+                    total_in: 0,
+                    total_out: 0,
+                    peak_count: 0
+                };
+            }
+
+            // Find busiest and freest hours
+            const busiest = hours.reduce((max, curr) => curr[1] > max[1] ? curr : max);
+            const freest = hours.reduce((min, curr) => curr[1] < min[1] ? curr : min);
+
+            const formatHour = (h) => {
+                const hour = parseInt(h);
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const displayHour = hour % 12 || 12;
+                return `${displayHour}:00 ${ampm}`;
+            };
+
+            return {
+                date: day.date,
+                day: day.day,
+                busiest_hour: formatHour(busiest[0]),
+                freest_hour: formatHour(freest[0]),
+                total_in: day.records.filter(r => r.direction === 'IN').length,
+                total_out: day.records.filter(r => r.direction === 'OUT').length,
+                peak_count: Math.max(...day.records.map(r => r.current_count || 0))
+            };
+        });
+
+        // Sort by date
+        weekSummary.sort((a, b) => a.date.localeCompare(b.date));
+
+        res.json({
+            success: true,
+            data: {
+                week_start: startDate.toISOString().split('T')[0],
+                week_end: new Date(endDate.getTime() - 1).toISOString().split('T')[0],
+                days: weekSummary
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting weekly data:', error);
         res.status(500).json({
             success: false,
             error: 'Internal server error'
