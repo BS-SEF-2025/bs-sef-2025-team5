@@ -22,8 +22,10 @@ export default function App() {
   });
   const [trendData, setTrendData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activityLog, setActivityLog] = useState([]);
   const [lastUpdated, setLastUpdated] = useState('--:--');
 
+  // Fetch data from API
   // Fetch data from API
   useEffect(() => {
     const fetchData = async () => {
@@ -49,6 +51,13 @@ export default function App() {
             };
           });
           setTrendData(chartData);
+        }
+
+        // Fetch recent activity
+        const activityResponse = await fetch(`${API_URL}/api/occupancy/recent`);
+        const activityResult = await activityResponse.json();
+        if (activityResult.success) {
+          setActivityLog(activityResult.data);
         }
 
         // Update timestamp
@@ -308,7 +317,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Activity Log */}
+      {/* Activity Log */}
         <div className="bg-[#111827] border border-slate-800 rounded-xl p-6">
           <div className="mb-6">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -318,11 +327,18 @@ export default function App() {
           </div>
           
           <div className="space-y-3">
-            <LogItem type="exit" time="10:32 PM" val="-2" />
-            <LogItem type="entry" time="10:29 PM" val="+2" />
-            <LogItem type="exit" time="10:26 PM" val="-1" />
-            <LogItem type="entry" time="10:21 PM" val="+3" />
-            <LogItem type="entry" time="10:18 PM" val="+1" />
+            {activityLog.length > 0 ? (
+              activityLog.map((activity, index) => (
+                <LogItem 
+                  key={index}
+                  type={activity.type} 
+                  time={activity.time} 
+                  val={activity.count_change} 
+                />
+              ))
+            ) : (
+              <div className="text-slate-500 text-center py-4">No recent activity</div>
+            )}
           </div>
         </div>
 
