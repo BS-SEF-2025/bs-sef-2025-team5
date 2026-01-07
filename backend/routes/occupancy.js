@@ -211,6 +211,7 @@ router.get('/today', async (req, res) => {
     }
 });
 
+
 // GET /api/occupancy/today-trend - Get hourly trend for today
 router.get('/today-trend', async (req, res) => {
     try {
@@ -232,7 +233,7 @@ router.get('/today-trend', async (req, res) => {
         const hourlyData = {};
         
         todayRecords.forEach(record => {
-            const hour = new Date(record.timestamp).getUTCHours();
+            const hour = new Date(record.timestamp).getHours();
             const timeKey = `${hour.toString().padStart(2, '0')}:00`;
             
             // Keep the latest count for each hour
