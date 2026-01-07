@@ -133,7 +133,6 @@ router.get('/latest', async (req, res) => {
 
 
 // GET /api/occupancy/today - Get today's summary
-// GET /api/occupancy/today - Get today's summary
 router.get('/today', async (req, res) => {
     try {
         const today = new Date();
