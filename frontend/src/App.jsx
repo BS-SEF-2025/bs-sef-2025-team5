@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, LogIn, LogOut, Activity, 
   Settings, Sun, RotateCw, Calendar, Clock, Trophy, Medal
@@ -7,23 +7,88 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine 
 } from 'recharts';
 
-
-const data = [
-  { time: '06:00', visitors: 10 },
-  { time: '07:00', visitors: 45 },
-  { time: '08:00', visitors: 90 },
-  { time: '09:00', visitors: 130 },
-  { time: '10:00', visitors: 170 },
-  { time: '11:00', visitors: 210 },
-  { time: '12:00', visitors: 240 },
-  { time: '13:00', visitors: 255 },
-  { time: '14:00', visitors: 245 },
-  { time: '15:00', visitors: 260 },
-  { time: '16:00', visitors: 280 },
-  { time: '17:00', visitors: 245 },
-];
+const API_URL = 'http://localhost:3000';
+const MAX_CAPACITY = 300;
 
 export default function App() {
+  // State for API data
+  const [occupancyData, setOccupancyData] = useState({
+    current_inside: 0,
+    total_in: 0,
+    total_out: 0,
+    peak_hour: '--',
+    peak_count: 0,
+    avg_today: 0
+  });
+  const [trendData, setTrendData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState('--:--');
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch today's summary
+        const todayResponse = await fetch(`${API_URL}/api/occupancy/today`);
+        const todayResult = await todayResponse.json();
+        if (todayResult.success) {
+          setOccupancyData(todayResult.data);
+        }
+
+        // Fetch trend data
+        const trendResponse = await fetch(`${API_URL}/api/occupancy/today-trend`);
+        const trendResult = await trendResponse.json();
+        if (trendResult.success) {
+          // Transform data for chart
+          const chartData = trendResult.data.map(item => ({
+            time: item.time,
+            visitors: item.count
+          }));
+          setTrendData(chartData);
+        }
+
+        // Update timestamp
+        const now = new Date();
+        setLastUpdated(now.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false 
+        }));
+
+      } catch (error) {
+        console.error('Failed to fetch occupancy data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate derived values
+  const capacityPercent = Math.round((occupancyData.current_inside / MAX_CAPACITY) * 100);
+  
+  const getStatus = () => {
+    if (capacityPercent < 50) return 'Low';
+    if (capacityPercent < 80) return 'Moderate';
+    return 'High';
+  };
+
+  const getTrend = () => {
+    if (trendData.length < 2) return 'Stable';
+    const last = trendData[trendData.length - 1]?.visitors || 0;
+    const prev = trendData[trendData.length - 2]?.visitors || 0;
+    if (last > prev) return 'Rising';
+    if (last < prev) return 'Falling';
+    return 'Stable';
+  };
+
+  // Use trend data for chart, or fallback to empty array
+  const chartData = trendData.length > 0 ? trendData : [];
+
   return (
     <div className="min-h-screen bg-[#0B101A] text-white p-4 md:p-8 font-sans">
       
@@ -37,7 +102,7 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-4 text-slate-400">
-          <span className="text-xs flex items-center gap-1"><RotateCw size={14}/> UPDATED 14:30</span>
+          <span className="text-xs flex items-center gap-1"><RotateCw size={14}/> UPDATED {lastUpdated}</span>
           <Sun size={20} className="hover:text-white cursor-pointer" />
           <Settings size={20} className="hover:text-white cursor-pointer" />
         </div>
@@ -54,7 +119,7 @@ export default function App() {
             <p className="text-slate-400 text-xs">David - Engineering Student</p>
           </div>
         </div>
-        <span className="text-slate-500 text-xs">Time: 14:30</span>
+        <span className="text-slate-500 text-xs">Time: {lastUpdated}</span>
       </div>
 
       {/* --- MAIN OCCUPANCY CARD --- */}
@@ -63,24 +128,27 @@ export default function App() {
           <div>
              <div className="flex items-center gap-2 mb-1">
                 <Activity size={16} className="text-slate-400"/>
-                <span className="text-slate-400 font-medium">Moderate</span>
+                <span className="text-slate-400 font-medium">{getStatus()}</span>
              </div>
              <p className="text-slate-500 text-sm">Current Occupancy</p>
           </div>
           <div className="text-right">
-            <div className="text-5xl font-bold text-white">82%</div>
+            <div className="text-5xl font-bold text-white">{capacityPercent}%</div>
             <div className="text-slate-400 text-sm">Capacity</div>
           </div>
         </div>
 
         <div className="flex items-end gap-2 mb-4">
-          <span className="text-6xl font-bold text-white tracking-tighter">245</span>
-          <span className="text-xl text-slate-500 mb-2">/ 300</span>
+          <span className="text-6xl font-bold text-white tracking-tighter">{occupancyData.current_inside}</span>
+          <span className="text-xl text-slate-500 mb-2">/ {MAX_CAPACITY}</span>
           <span className="text-sm text-slate-500 mb-2 ml-2">Active Visitors</span>
         </div>
 
         <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-400 h-full w-[82%] shadow-[0_0_15px_rgba(59,130,246,0.5)]"></div>
+          <div 
+            className="bg-gradient-to-r from-blue-600 to-blue-400 h-full shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+            style={{width: `${capacityPercent}%`}}
+          ></div>
         </div>
         <div className="flex justify-between text-xs text-slate-500 mt-2">
           <span>0%</span>
@@ -90,9 +158,9 @@ export default function App() {
 
       {/* --- STATS GRID --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <StatCard icon={<LogIn size={20} />} title="Total Entries" value="740" sub="Today" />
-        <StatCard icon={<LogOut size={20} />} title="Total Exits" value="617" sub="Today" />
-        <StatCard icon={<Activity size={20} />} title="Peak Hour" value="2:30 PM" sub="Today" isText />
+        <StatCard icon={<LogIn size={20} />} title="Total Entries" value={occupancyData.total_in} sub="Today" />
+        <StatCard icon={<LogOut size={20} />} title="Total Exits" value={occupancyData.total_out} sub="Today" />
+        <StatCard icon={<Activity size={20} />} title="Peak Hour" value={occupancyData.peak_hour || '--'} sub="Today" isText />
       </div>
 
       {/* --- CHART SECTION --- */}
@@ -108,41 +176,49 @@ export default function App() {
         </div>
 
         <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data}>
-              <defs>
-                <linearGradient id="colorVis" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="time" stroke="#64748b" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
-              <YAxis stroke="#64748b" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
-                itemStyle={{ color: '#60a5fa' }}
-              />
-              <ReferenceLine y={280} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Max', fill: '#ef4444', fontSize: 10 }} />
-              <ReferenceLine y={200} stroke="#f59e0b" strokeDasharray="3 3" />
-              <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVis)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorVis" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="time" stroke="#64748b" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
+                <YAxis stroke="#64748b" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
+                  itemStyle={{ color: '#60a5fa' }}
+                />
+                <ReferenceLine y={MAX_CAPACITY} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Max', fill: '#ef4444', fontSize: 10 }} />
+                <ReferenceLine y={occupancyData.avg_today} stroke="#f59e0b" strokeDasharray="3 3" />
+                <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVis)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-500">
+              {loading ? 'Loading chart data...' : 'No data available for today'}
+            </div>
+          )}
         </div>
         
         {/* Footer Stats for Chart */}
         <div className="grid grid-cols-3 gap-4 mt-6 border-t border-slate-800 pt-4">
            <div>
              <p className="text-xs text-slate-500">Current Trend</p>
-             <p className="text-green-400 font-bold flex items-center gap-1">↘ Falling</p>
+             <p className={`font-bold flex items-center gap-1 ${getTrend() === 'Rising' ? 'text-red-400' : getTrend() === 'Falling' ? 'text-green-400' : 'text-slate-400'}`}>
+               {getTrend() === 'Rising' ? '↗' : getTrend() === 'Falling' ? '↘' : '→'} {getTrend()}
+             </p>
            </div>
            <div>
              <p className="text-xs text-slate-500">Peak Today</p>
-             <p className="text-xl font-bold text-white">282</p>
+             <p className="text-xl font-bold text-white">{occupancyData.peak_count}</p>
            </div>
            <div>
              <p className="text-xs text-slate-500">Avg Today</p>
-             <p className="text-xl font-bold text-white">167</p>
+             <p className="text-xl font-bold text-white">{occupancyData.avg_today}</p>
            </div>
         </div>
       </div>
