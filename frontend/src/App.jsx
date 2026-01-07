@@ -24,6 +24,12 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [activityLog, setActivityLog] = useState([]);
   const [lastUpdated, setLastUpdated] = useState('--:--');
+  const [topPeaksData, setTopPeaksData] = useState({
+    peaks: [],
+    highest_ever: 0,
+    avg_top3: 0,
+    max_capacity: 300
+});
 
   // Fetch data from API
   // Fetch data from API
@@ -53,6 +59,12 @@ export default function App() {
           setTrendData(chartData);
         }
 
+        // Fetch top peaks data
+        const peaksResponse = await fetch(`${API_URL}/api/occupancy/top-peaks`);
+        const peaksResult = await peaksResponse.json();
+        if (peaksResult.success) {
+            setTopPeaksData(peaksResult.data);
+        }
         // Fetch recent activity
         const activityResponse = await fetch(`${API_URL}/api/occupancy/recent`);
         const activityResult = await activityResponse.json();
@@ -221,7 +233,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* --- NEW SECTION: TOP 3 BUSIEST TIMES EVER --- */}
+{/* --- NEW SECTION: TOP 3 BUSIEST TIMES EVER --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111827] border border-slate-800 rounded-xl p-6">
           <div className="flex justify-between items-center mb-6">
@@ -235,39 +247,37 @@ export default function App() {
           </div>
 
           <div className="space-y-4">
-             {/* Rank 1 */}
-             <RankItem 
-               rank="1" date="2024-12-15 at 14:30" 
-               val="299" pct="99.7%" color="text-yellow-400" iconColor="bg-yellow-400/20 text-yellow-400"
-               barColor="bg-red-600"
-             />
-             {/* Rank 2 */}
-             <RankItem 
-               rank="2" date="2024-12-10 at 15:45" 
-               val="298" pct="99.3%" color="text-slate-300" iconColor="bg-slate-400/20 text-slate-300"
-               barColor="bg-red-500"
-             />
-             {/* Rank 3 */}
-             <RankItem 
-               rank="3" date="2024-12-08 at 13:20" 
-               val="297" pct="99.0%" color="text-orange-400" iconColor="bg-orange-600/20 text-orange-400"
-               barColor="bg-red-500"
-             />
+             {topPeaksData.peaks.length > 0 ? (
+               topPeaksData.peaks.map((peak, index) => (
+                 <RankItem 
+                   key={index}
+                   rank={peak.rank.toString()} 
+                   date={peak.date} 
+                   val={peak.count.toString()} 
+                   pct={`${peak.percentage}%`} 
+                   color={index === 0 ? "text-yellow-400" : index === 1 ? "text-slate-300" : "text-orange-400"} 
+                   iconColor={index === 0 ? "bg-yellow-400/20 text-yellow-400" : index === 1 ? "bg-slate-400/20 text-slate-300" : "bg-orange-600/20 text-orange-400"}
+                   barColor={index === 0 ? "bg-red-600" : "bg-red-500"}
+                 />
+               ))
+             ) : (
+               <div className="text-slate-500 text-center py-4">No peak data available</div>
+             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4 mt-6">
              <div className="bg-slate-800/30 p-4 rounded-lg">
                 <p className="text-xs text-slate-500 mb-1">Highest Ever</p>
-                <p className="text-xl font-bold text-red-400">299 / 300</p>
+                <p className="text-xl font-bold text-red-400">{topPeaksData.highest_ever} / {topPeaksData.max_capacity}</p>
              </div>
              <div className="bg-slate-800/30 p-4 rounded-lg">
                 <p className="text-xs text-slate-500 mb-1">Avg of Top 3</p>
-                <p className="text-xl font-bold text-white">298</p>
+                <p className="text-xl font-bold text-white">{topPeaksData.avg_top3}</p>
              </div>
           </div>
         </div>
         
-        {/* Placeholder for future content or just spacing */}
+        {/* Placeholder for future content */}
          <div className="bg-[#111827] border border-slate-800 rounded-xl p-6 flex flex-col justify-center items-center text-center opacity-50">
             <Activity size={48} className="text-slate-600 mb-4"/>
             <h3 className="text-lg font-bold text-slate-500">More Analytics Coming Soon</h3>
