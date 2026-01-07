@@ -417,4 +417,70 @@ router.get('/recent', async (req, res) => {
         });
     }
 });
+// GET /api/occupancy/top-peaks - Get top 3 busiest times ever
+router.get('/top-peaks', async (req, res) => {
+    try {
+        const topPeaks = await Occupancy.find({
+            current_count: { $exists: true, $ne: null }
+        })
+        .sort({ current_count: -1 })
+        .limit(3);
+
+        if (topPeaks.length === 0) {
+            return res.json({
+                success: true,
+                data: {
+                    peaks: [],
+                    highest_ever: 0,
+                    avg_top3: 0
+                }
+            });
+        }
+
+        const MAX_CAPACITY = 300;
+
+        const peaks = topPeaks.map((record, index) => {
+            const timestamp = new Date(record.timestamp);
+            const date = timestamp.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const time = timestamp.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+
+            return {
+                rank: index + 1,
+                date: `${date} at ${time}`,
+                count: record.current_count,
+                percentage: ((record.current_count / MAX_CAPACITY) * 100).toFixed(1)
+            };
+        });
+
+        const highest_ever = topPeaks[0].current_count;
+        const avg_top3 = Math.round(
+            topPeaks.reduce((sum, r) => sum + r.current_count, 0) / topPeaks.length
+        );
+
+        res.json({
+            success: true,
+            data: {
+                peaks,
+                highest_ever,
+                avg_top3,
+                max_capacity: MAX_CAPACITY
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting top peaks:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
 module.exports = router;
