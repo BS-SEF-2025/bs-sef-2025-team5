@@ -40,10 +40,15 @@ export default function App() {
         const trendResult = await trendResponse.json();
         if (trendResult.success) {
           // Transform data for chart
-          const chartData = trendResult.data.map(item => ({
-            time: item.time,
-            visitors: item.count
-          }));
+          // Transform data for chart - convert UTC to local time
+          const chartData = trendResult.data.map(item => {
+            const utcHour = parseInt(item.time.split(':')[0]);
+            const localHour = (utcHour + 2) % 24; // UTC+2 for Israel
+            return {
+              time: `${localHour.toString().padStart(2, '0')}:00`,
+              visitors: item.count
+            };
+          });
           setTrendData(chartData);
         }
 
