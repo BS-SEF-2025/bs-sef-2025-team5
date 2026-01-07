@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, LogIn, LogOut, Activity, 
-  Settings, Sun, RotateCw, Calendar, Clock, Trophy, Medal
+  LogIn, LogOut, Activity, 
+  Settings, RotateCw, Calendar, Clock, Trophy, Medal
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine 
@@ -39,11 +39,15 @@ export default function App() {
         const trendResponse = await fetch(`${API_URL}/api/occupancy/today-trend`);
         const trendResult = await trendResponse.json();
         if (trendResult.success) {
-          // Transform data for chart
-          const chartData = trendResult.data.map(item => ({
-            time: item.time,
-            visitors: item.count
-          }));
+          // Transform data for chart - convert UTC to local time
+          const chartData = trendResult.data.map(item => {
+            const utcHour = parseInt(item.time.split(':')[0]);
+            const localHour = (utcHour + 2) % 24; // UTC+2 for Israel
+            return {
+              time: `${localHour.toString().padStart(2, '0')}:00`,
+              visitors: item.count
+            };
+          });
           setTrendData(chartData);
         }
 
@@ -103,24 +107,9 @@ export default function App() {
         </div>
         <div className="flex items-center gap-4 text-slate-400">
           <span className="text-xs flex items-center gap-1"><RotateCw size={14}/> UPDATED {lastUpdated}</span>
-          <Sun size={20} className="hover:text-white cursor-pointer" />
           <Settings size={20} className="hover:text-white cursor-pointer" />
         </div>
       </header>
-
-      {/* --- USER STORY BANNER --- */}
-      <div className="bg-[#1A2333] border border-blue-900/50 rounded-lg p-3 mb-6 flex justify-between items-center text-sm shadow-lg shadow-blue-900/10">
-        <div className="flex gap-3 items-center">
-          <div className="bg-blue-600/20 text-blue-400 p-1.5 rounded">
-            <Users size={16} />
-          </div>
-          <div>
-            <span className="font-semibold text-blue-100">Scenario 1: Check Library Status Before Walking There</span>
-            <p className="text-slate-400 text-xs">David - Engineering Student</p>
-          </div>
-        </div>
-        <span className="text-slate-500 text-xs">Time: {lastUpdated}</span>
-      </div>
 
       {/* --- MAIN OCCUPANCY CARD --- */}
       <div className="bg-[#111827] rounded-2xl p-6 mb-6 border border-slate-800 relative overflow-hidden">
