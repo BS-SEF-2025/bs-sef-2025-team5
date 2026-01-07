@@ -188,4 +188,50 @@ router.get('/today', async (req, res) => {
         });
     }
 });
+// GET /api/occupancy/today-trend - Get hourly trend for today
+router.get('/today-trend', async (req, res) => {
+    try {
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+
+        const todayRecords = await Occupancy.find({
+            timestamp: { $gte: today }
+        }).sort({ timestamp: 1 });
+
+        if (todayRecords.length === 0) {
+            return res.json({
+                success: true,
+                data: []
+            });
+        }
+
+        // Group by hour
+        const hourlyData = {};
+        
+        todayRecords.forEach(record => {
+            const hour = new Date(record.timestamp).getUTCHours();
+            const timeKey = `${hour.toString().padStart(2, '0')}:00`;
+            
+            // Keep the latest count for each hour
+            hourlyData[timeKey] = record.current_count || 0;
+        });
+
+        // Convert to array
+        const trend = Object.entries(hourlyData)
+            .map(([time, count]) => ({ time, count }))
+            .sort((a, b) => a.time.localeCompare(b.time));
+
+        res.json({
+            success: true,
+            data: trend
+        });
+
+    } catch (error) {
+        console.error('Error getting today trend:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
 module.exports = router;
