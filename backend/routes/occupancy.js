@@ -133,13 +133,12 @@ router.get('/latest', async (req, res) => {
 
 
 // GET /api/occupancy/today - Get today's summary
+// GET /api/occupancy/today - Get today's summary
 router.get('/today', async (req, res) => {
     try {
-        // Get start of today (UTC)
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        // Get all records from today
         const todayRecords = await Occupancy.find({
             timestamp: { $gte: today }
         }).sort({ timestamp: -1 });
@@ -153,20 +152,42 @@ router.get('/today', async (req, res) => {
                     total_out: 0,
                     current_inside: 0,
                     peak_count: 0,
+                    peak_hour: null,
+                    avg_today: 0,
                     records_today: 0
                 }
             });
         }
 
-        // Calculate totals
         const total_in = todayRecords.filter(r => r.direction === 'IN').length;
         const total_out = todayRecords.filter(r => r.direction === 'OUT').length;
-        
-        // Current count (from latest record)
         const current_inside = todayRecords[0].current_count || 0;
         
-        // Peak count (highest current_count today)
-        const peak_count = Math.max(...todayRecords.map(r => r.current_count || 0));
+        // Find peak count and peak hour
+        let peak_count = 0;
+        let peak_record = null;
+        
+        todayRecords.forEach(record => {
+            if ((record.current_count || 0) > peak_count) {
+                peak_count = record.current_count;
+                peak_record = record;
+            }
+        });
+
+        // Format peak hour (e.g., "2:30 PM")
+        let peak_hour = null;
+        if (peak_record) {
+            const peakTime = new Date(peak_record.timestamp);
+            peak_hour = peakTime.toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit',
+                hour12: true 
+            });
+        }
+
+        // Calculate average occupancy today
+        const counts = todayRecords.map(r => r.current_count || 0);
+        const avg_today = Math.round(counts.reduce((a, b) => a + b, 0) / counts.length);
 
         res.json({
             success: true,
@@ -176,6 +197,8 @@ router.get('/today', async (req, res) => {
                 total_out,
                 current_inside,
                 peak_count,
+                peak_hour,
+                avg_today,
                 records_today: todayRecords.length
             }
         });
@@ -188,6 +211,7 @@ router.get('/today', async (req, res) => {
         });
     }
 });
+
 // GET /api/occupancy/today-trend - Get hourly trend for today
 router.get('/today-trend', async (req, res) => {
     try {
