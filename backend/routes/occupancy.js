@@ -201,7 +201,7 @@ router.get('/today', async (req, res) => {
                 avg_today,
                 records_today: todayRecords.length
             }
-        });z
+        });
 
     } catch (error) {
         console.error('Error getting today stats:', error);
