@@ -425,7 +425,7 @@ router.get('/top-peaks', async (req, res) => {
         })
         .sort({ current_count: -1 })
         .limit(3);
-
+        
         if (topPeaks.length === 0) {
             return res.json({
                 success: true,
@@ -436,9 +436,9 @@ router.get('/top-peaks', async (req, res) => {
                 }
             });
         }
-
+        
         const MAX_CAPACITY = 300;
-
+        
         const peaks = topPeaks.map((record, index) => {
             const timestamp = new Date(record.timestamp);
             const date = timestamp.toLocaleDateString('en-US', {
@@ -446,25 +446,21 @@ router.get('/top-peaks', async (req, res) => {
                 month: '2-digit',
                 day: '2-digit'
             });
-            const time = timestamp.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            });
+            const day = timestamp.toLocaleDateString('en-US', { weekday: 'long' });
 
             return {
                 rank: index + 1,
-                date: `${date} at ${time}`,
+                date: `${date} (${day})`,
                 count: record.current_count,
                 percentage: ((record.current_count / MAX_CAPACITY) * 100).toFixed(1)
             };
         });
-
+        
         const highest_ever = topPeaks[0].current_count;
         const avg_top3 = Math.round(
             topPeaks.reduce((sum, r) => sum + r.current_count, 0) / topPeaks.length
         );
-
+        
         res.json({
             success: true,
             data: {
@@ -474,7 +470,6 @@ router.get('/top-peaks', async (req, res) => {
                 max_capacity: MAX_CAPACITY
             }
         });
-
     } catch (error) {
         console.error('Error getting top peaks:', error);
         res.status(500).json({
