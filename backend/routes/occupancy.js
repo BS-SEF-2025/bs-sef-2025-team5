@@ -375,4 +375,46 @@ router.get('/weekly', async (req, res) => {
         });
     }
 });
+
+// GET /api/occupancy/recent - Get recent activity log
+router.get('/recent', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+
+        const recentRecords = await Occupancy.find({
+            direction: { $exists: true, $ne: null }
+        })
+        .sort({ timestamp: -1 })
+        .limit(limit);
+
+        const activities = recentRecords.map(record => {
+            const timestamp = new Date(record.timestamp);
+            const time = timestamp.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+
+            return {
+                type: record.direction === 'IN' ? 'entry' : 'exit',
+                time: time,
+                count_change: record.direction === 'IN' ? '+1' : '-1',
+                current_count: record.current_count,
+                timestamp: record.timestamp
+            };
+        });
+
+        res.json({
+            success: true,
+            data: activities
+        });
+
+    } catch (error) {
+        console.error('Error getting recent activity:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
 module.exports = router;
