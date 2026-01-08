@@ -28,6 +28,7 @@ export default function App() {
   });
   const [loading, setLoading] = useState(true);
   const [activityLog, setActivityLog] = useState([]);
+  const [libraryClosed, setLibraryClosed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('--:--');
   const [topPeaksData, setTopPeaksData] = useState({
@@ -207,6 +208,25 @@ const handleManualAdjust = async (direction) => {
           </button>
         </div>
       </div>
+{/* Library Status */}
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-slate-400 mb-4">LIBRARY_STATUS</h3>
+        <div 
+          className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition ${
+            libraryClosed 
+              ? 'bg-red-600/20 border-red-600/50' 
+              : 'bg-green-600/20 border-green-600/50'
+          }`}
+          onClick={() => setLibraryClosed(!libraryClosed)}
+        >
+          <span className={`font-medium ${libraryClosed ? 'text-red-400' : 'text-green-400'}`}>
+            {libraryClosed ? 'CLOSED' : 'OPEN'}
+          </span>
+          <div className={`w-12 h-6 rounded-full p-1 transition ${libraryClosed ? 'bg-red-600' : 'bg-green-600'}`}>
+            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${libraryClosed ? 'translate-x-6' : 'translate-x-0'}`}></div>
+          </div>
+        </div>
+      </div>
 
       {/* Capacity Setting */}
       <div className="mb-8">
@@ -245,42 +265,50 @@ const handleManualAdjust = async (direction) => {
             >
               <RotateCw size={14} className={loading ? 'animate-spin' : ''}/> UPDATED {lastUpdated}
             </span>
-          <Settings size={20} className="hover:text-white cursor-pointer" />
+          <Settings size={20} className="hover:text-white cursor-pointer" onClick={() => setShowSettings(true)} />
         </div>
       </header>
-
-      {/* --- MAIN OCCUPANCY CARD --- */}
+{/* --- MAIN OCCUPANCY CARD --- */}
       <div className="bg-[#111827] rounded-2xl p-6 mb-6 border border-slate-800 relative overflow-hidden">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-             <div className="flex items-center gap-2 mb-1">
-                <Activity size={16} className="text-slate-400"/>
-                <span className="text-slate-400 font-medium">{getStatus()}</span>
-             </div>
-             <p className="text-slate-500 text-sm">Current Occupancy</p>
+        {libraryClosed ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <span className="text-5xl font-bold text-red-400 mb-2">CLOSED</span>
+            <p className="text-slate-500">The library is currently closed</p>
           </div>
-          <div className="text-right">
-            <div className="text-5xl font-bold text-white">{capacityPercent}%</div>
-            <div className="text-slate-400 text-sm">Capacity</div>
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity size={16} className="text-slate-400"/>
+                  <span className="text-slate-400 font-medium">{getStatus()}</span>
+                </div>
+                <p className="text-slate-500 text-sm">Current Occupancy</p>
+              </div>
+              <div className="text-right">
+                <div className="text-5xl font-bold text-white">{capacityPercent}%</div>
+                <div className="text-slate-400 text-sm">Capacity</div>
+              </div>
+            </div>
 
-        <div className="flex items-end gap-2 mb-4">
-          <span className="text-6xl font-bold text-white tracking-tighter">{occupancyData.current_inside}</span>
-          <span className="text-xl text-slate-500 mb-2">/ {MAX_CAPACITY}</span>
-          <span className="text-sm text-slate-500 mb-2 ml-2">Active Visitors</span>
-        </div>
+            <div className="flex items-end gap-2 mb-4">
+              <span className="text-6xl font-bold text-white tracking-tighter">{occupancyData.current_inside}</span>
+              <span className="text-xl text-slate-500 mb-2">/ {MAX_CAPACITY}</span>
+              <span className="text-sm text-slate-500 mb-2 ml-2">Active Visitors</span>
+            </div>
 
-        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-          <div 
-            className="bg-gradient-to-r from-blue-600 to-blue-400 h-full shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-            style={{width: `${capacityPercent}%`}}
-          ></div>
-        </div>
-        <div className="flex justify-between text-xs text-slate-500 mt-2">
-          <span>0%</span>
-          <span>100%</span>
-        </div>
+            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-blue-600 to-blue-400 h-full shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+                style={{width: `${capacityPercent}%`}}
+              ></div>
+            </div>
+            <div className="flex justify-between text-xs text-slate-500 mt-2">
+              <span>0%</span>
+              <span>100%</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* --- STATS GRID --- */}
