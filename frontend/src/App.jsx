@@ -127,7 +127,15 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-4 text-slate-400">
-          <span className="text-xs flex items-center gap-1"><RotateCw size={14}/> UPDATED {lastUpdated}</span>
+          <span 
+              className="text-xs flex items-center gap-1 cursor-pointer hover:text-white transition"
+              onClick={() => {
+                setLoading(true);
+                window.location.reload();
+              }}
+            >
+              <RotateCw size={14} className={loading ? 'animate-spin' : ''}/> UPDATED {lastUpdated}
+            </span>
           <Settings size={20} className="hover:text-white cursor-pointer" />
         </div>
       </header>
