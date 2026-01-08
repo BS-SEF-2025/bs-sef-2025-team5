@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 
 const API_URL = 'http://localhost:3000';
-const MAX_CAPACITY = 300;
+const MAX_CAPACITY = 300; // This is now just a recommendation reference
 
 export default function App() {
   // State for API data
@@ -39,7 +39,6 @@ export default function App() {
     max_capacity: 300
 });
 
-  // Fetch data from API
   // Fetch data from API
   useEffect(() => {
     const fetchData = async () => {
@@ -109,11 +108,7 @@ export default function App() {
 
   // Manual adjustment function
 const handleManualAdjust = async (direction) => {
-  if (direction === 'IN' && occupancyData.current_inside >= MAX_CAPACITY) {
-    alert("Library is full! you cant add more people to the library."); 
-    return;
-  }
-
+  // REMOVED LIMIT CHECK: Users can now exceed MAX_CAPACITY
   try {
     const newCount = direction === 'IN' 
       ? occupancyData.current_inside + 1 
@@ -142,15 +137,15 @@ const handleManualAdjust = async (direction) => {
   }
 };
 
-
-
   // Calculate derived values
   const capacityPercent = Math.round((occupancyData.current_inside / MAX_CAPACITY) * 100);
   
   const getStatus = () => {
+    // Adjusted logic slightly to account for over-capacity
     if (capacityPercent < 50) return 'Low';
     if (capacityPercent < 80) return 'Moderate';
-    return 'High';
+    if (capacityPercent <= 100) return 'High';
+    return 'Over Capacity'; // New status for > 300
   };
 
   const getTrend = () => {
@@ -240,7 +235,7 @@ const handleManualAdjust = async (direction) => {
 
       {/* Capacity Setting */}
       <div className="mb-8">
-        <h3 className="text-sm font-medium text-slate-400 mb-4">MAXIMUM_CAPACITY</h3>
+        <h3 className="text-sm font-medium text-slate-400 mb-4">RECOMMENDED_CAPACITY</h3>
         <div className="bg-slate-800/50 rounded-lg p-3">
           <p className="text-white font-medium">{MAX_CAPACITY} people</p>
         </div>
@@ -290,32 +285,39 @@ const handleManualAdjust = async (direction) => {
             <div className="flex justify-between items-start mb-2">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <Activity size={16} className="text-slate-400"/>
-                  <span className="text-slate-400 font-medium">{getStatus()}</span>
+                  <Activity size={16} className={`text-slate-400 ${capacityPercent > 100 ? 'text-red-400 animate-pulse' : ''}`}/>
+                  <span className={`font-medium ${capacityPercent > 100 ? 'text-red-400' : 'text-slate-400'}`}>{getStatus()}</span>
                 </div>
                 <p className="text-slate-500 text-sm">Current Occupancy</p>
               </div>
               <div className="text-right">
-                <div className="text-5xl font-bold text-white">{capacityPercent}%</div>
-                <div className="text-slate-400 text-sm">Capacity</div>
+                <div className={`text-5xl font-bold ${capacityPercent > 100 ? 'text-red-400' : 'text-white'}`}>{capacityPercent}%</div>
+                <div className="text-slate-400 text-sm">Of Recommendation</div>
               </div>
             </div>
 
             <div className="flex items-end gap-2 mb-4">
               <span className="text-6xl font-bold text-white tracking-tighter">{occupancyData.current_inside}</span>
-              <span className="text-xl text-slate-500 mb-2">/ {MAX_CAPACITY}</span>
-              <span className="text-sm text-slate-500 mb-2 ml-2">Active Visitors</span>
+              <div className="flex flex-col mb-1 ml-2">
+                 <span className="text-sm text-slate-400 font-medium">Active Visitors</span>
+                 <span className="text-xs text-slate-500">Recommended: {MAX_CAPACITY}</span>
+              </div>
             </div>
 
             <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
               <div 
-                className="bg-gradient-to-r from-blue-600 to-blue-400 h-full shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-                style={{width: `${capacityPercent}%`}}
+                className={`h-full shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all duration-500 ${
+                  capacityPercent > 100 
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500' // Red if over capacity
+                    : 'bg-gradient-to-r from-blue-600 to-blue-400'
+                }`}
+                // Cap the visual width at 100% so it doesn't break layout
+                style={{width: `${Math.min(capacityPercent, 100)}%`}}
               ></div>
             </div>
             <div className="flex justify-between text-xs text-slate-500 mt-2">
               <span>0%</span>
-              <span>100%</span>
+              <span>100% (Rec)</span>
             </div>
           </>
         )}
@@ -357,7 +359,7 @@ const handleManualAdjust = async (direction) => {
                   contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
                   itemStyle={{ color: '#60a5fa' }}
                 />
-                <ReferenceLine y={MAX_CAPACITY} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Max', fill: '#ef4444', fontSize: 10 }} />
+                <ReferenceLine y={MAX_CAPACITY} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Rec', fill: '#ef4444', fontSize: 10 }} />
                 <ReferenceLine y={occupancyData.avg_today} stroke="#f59e0b" strokeDasharray="3 3" />
                 <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVis)" />
               </AreaChart>
