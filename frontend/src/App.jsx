@@ -21,6 +21,11 @@ export default function App() {
     avg_today: 0
   });
   const [trendData, setTrendData] = useState([]);
+  const [weeklyData, setWeeklyData] = useState({
+    week_start: '',
+    week_end: '',
+    days: []
+  });
   const [loading, setLoading] = useState(true);
   const [activityLog, setActivityLog] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
@@ -60,6 +65,12 @@ export default function App() {
           setTrendData(chartData);
         }
 
+        // Fetch weekly data
+        const weeklyResponse = await fetch(`${API_URL}/api/occupancy/weekly`);
+        const weeklyResult = await weeklyResponse.json();
+        if (weeklyResult.success) {
+            setWeeklyData(weeklyResult.data);
+        }
         // Fetch top peaks data
         const peaksResponse = await fetch(`${API_URL}/api/occupancy/top-peaks`);
         const peaksResult = await peaksResponse.json();
@@ -394,7 +405,7 @@ const handleManualAdjust = async (direction) => {
       {/* --- BOTTOM SECTION: WEEKLY & LOGS --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Weekly Peak Hours Table */}
+       {/* Weekly Peak Hours Table */}
         <div className="lg:col-span-2 bg-[#111827] border border-slate-800 rounded-xl p-6">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -405,7 +416,7 @@ const handleManualAdjust = async (direction) => {
           </div>
 
           <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 flex justify-between items-center mb-6 text-sm">
-            <span>28 / 12 / 2024</span>
+            <span>{weeklyData.week_start} - {weeklyData.week_end}</span>
             <Calendar size={16} className="text-slate-400"/>
           </div>
 
@@ -416,20 +427,47 @@ const handleManualAdjust = async (direction) => {
             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> Freest Hour</span>
           </div>
 
-          <div className="space-y-4 text-sm">
-            <Row date="2024-12-22" day="Sunday" busy="3:00 PM" free="7:00 AM" />
-            <Row date="2024-12-23" day="Monday" busy="2:00 PM" free="6:00 AM" />
-            <Row date="2024-12-24" day="Tuesday" busy="1:00 PM" free="7:00 AM" />
-            <div className="grid grid-cols-4 py-2 text-slate-600 italic">
-               <span>2024-12-25</span><span>Wednesday</span><span>CLOSED</span><span>CLOSED</span>
-            </div>
-            <Row date="2024-12-26" day="Thursday" busy="3:00 PM" free="8:00 AM" />
-            <div className="bg-blue-900/20 -mx-2 px-2 py-2 rounded border-l-2 border-blue-500 grid grid-cols-4 items-center">
-               <span className="text-white font-medium">2024-12-28</span>
-               <span className="text-white">Saturday</span>
-               <span className="text-red-400 font-bold">2:00 PM</span>
-               <span className="text-green-400 font-bold">8:00 AM</span>
-            </div>
+          <div className="space-y-1 text-sm">
+            {weeklyData.days.length > 0 ? (
+              weeklyData.days.map((day, index) => {
+                const isToday = day.date === new Date().toISOString().split('T')[0];
+                const isClosed = !day.busiest_hour && !day.freest_hour;
+
+                if (isClosed) {
+                  return (
+                    <div key={index} className="grid grid-cols-4 py-2 text-slate-600 italic">
+                      <span>{day.date}</span>
+                      <span>{day.day}</span>
+                      <span>CLOSED</span>
+                      <span>CLOSED</span>
+                    </div>
+                  );
+                }
+
+                if (isToday) {
+                  return (
+                    <div key={index} className="bg-blue-900/20 -mx-2 px-2 py-2 rounded border-l-2 border-blue-500 grid grid-cols-4 items-center">
+                      <span className="text-white font-medium">{day.date}</span>
+                      <span className="text-white">{day.day}</span>
+                      <span className="text-red-400 font-bold">{day.busiest_hour}</span>
+                      <span className="text-green-400 font-bold">{day.freest_hour}</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <Row 
+                    key={index}
+                    date={day.date} 
+                    day={day.day} 
+                    busy={day.busiest_hour || '--'} 
+                    free={day.freest_hour || '--'} 
+                  />
+                );
+              })
+            ) : (
+              <div className="text-slate-500 text-center py-4">No weekly data available</div>
+            )}
           </div>
         </div>
 
