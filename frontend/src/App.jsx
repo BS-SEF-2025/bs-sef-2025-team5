@@ -234,7 +234,7 @@ const handleManualAdjust = async (direction) => {
             >
               <RotateCw size={14} className={loading ? 'animate-spin' : ''}/> UPDATED {lastUpdated}
             </span>
-          <Settings size={20} className="hover:text-white cursor-pointer" />
+          <Settings size={20} className="hover:text-white cursor-pointer" onClick={() => setShowSettings(true)} />
         </div>
       </header>
 
