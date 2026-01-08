@@ -23,6 +23,7 @@ export default function App() {
   const [trendData, setTrendData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activityLog, setActivityLog] = useState([]);
+  const [showSettings, setShowSettings] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('--:--');
   const [topPeaksData, setTopPeaksData] = useState({
     peaks: [],
@@ -93,6 +94,39 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Manual adjustment function
+const handleManualAdjust = async (direction) => {
+  try {
+    const newCount = direction === 'IN' 
+      ? occupancyData.current_inside + 1 
+      : Math.max(0, occupancyData.current_inside - 1);
+    
+    const response = await fetch(`${API_URL}/api/occupancy/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        current_count: newCount,
+        direction: direction
+      })
+    });
+    
+    if (response.ok) {
+      // Update local state immediately
+      setOccupancyData(prev => ({
+        ...prev,
+        current_inside: newCount,
+        total_in: direction === 'IN' ? prev.total_in + 1 : prev.total_in,
+        total_out: direction === 'OUT' ? prev.total_out + 1 : prev.total_out
+      }));
+    }
+  } catch (error) {
+    console.error('Failed to adjust count:', error);
+  }
+};
+
+
+
   // Calculate derived values
   const capacityPercent = Math.round((occupancyData.current_inside / MAX_CAPACITY) * 100);
   
@@ -116,7 +150,71 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0B101A] text-white p-4 md:p-8 font-sans">
-      
+      {/* --- SETTINGS SIDE PANEL --- */}
+{showSettings && (
+  <div className="fixed inset-0 z-50 flex justify-end">
+    {/* Backdrop */}
+    <div 
+      className="absolute inset-0 bg-black/50" 
+      onClick={() => setShowSettings(false)}
+    ></div>
+    
+    {/* Panel */}
+    <div className="relative w-80 bg-[#111827] h-full border-l border-slate-700 p-6 overflow-y-auto">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-xl font-bold text-white">Admin Panel</h2>
+        <button 
+          onClick={() => setShowSettings(false)}
+          className="text-slate-400 hover:text-white text-2xl"
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Manual Adjustment Section */}
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-slate-400 mb-4">MANUAL_ADJUSTMENT</h3>
+        <p className="text-xs text-slate-500 mb-4">Manually adjust the current occupancy count</p>
+        
+        <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
+          <p className="text-slate-400 text-sm mb-2">Current Count</p>
+          <p className="text-4xl font-bold text-white">{occupancyData.current_inside}</p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => handleManualAdjust('OUT')}
+            className="flex-1 bg-red-600/20 hover:bg-red-600/30 border border-red-600/50 text-red-400 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+          >
+            <LogOut size={18} /> -1
+          </button>
+          <button
+            onClick={() => handleManualAdjust('IN')}
+            className="flex-1 bg-green-600/20 hover:bg-green-600/30 border border-green-600/50 text-green-400 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+          >
+            <LogIn size={18} /> +1
+          </button>
+        </div>
+      </div>
+
+      {/* Capacity Setting */}
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-slate-400 mb-4">MAXIMUM_CAPACITY</h3>
+        <div className="bg-slate-800/50 rounded-lg p-3">
+          <p className="text-white font-medium">{MAX_CAPACITY} people</p>
+        </div>
+      </div>
+
+      {/* API Info */}
+      <div>
+        <h3 className="text-sm font-medium text-slate-400 mb-4">API_ENDPOINT</h3>
+        <div className="bg-slate-800/50 rounded-lg p-3">
+          <p className="text-slate-300 text-sm break-all">{API_URL}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
       {/* --- HEADER --- */}
       <header className="flex justify-between items-center mb-8 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">

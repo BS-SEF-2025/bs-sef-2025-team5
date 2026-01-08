@@ -417,50 +417,61 @@ router.get('/recent', async (req, res) => {
         });
     }
 });
-// GET /api/occupancy/top-peaks - Get top 3 busiest times ever
+// GET /api/occupancy/top-peaks - Get top 3 busiest DAYS ever
 router.get('/top-peaks', async (req, res) => {
     try {
-        const topPeaks = await Occupancy.find({
+        const MAX_CAPACITY = 300;
+
+        // Get all records
+        const allRecords = await Occupancy.find({
             current_count: { $exists: true, $ne: null }
-        })
-        .sort({ current_count: -1 })
-        .limit(3);
-        
-        if (topPeaks.length === 0) {
+        });
+
+        if (allRecords.length === 0) {
             return res.json({
                 success: true,
                 data: {
                     peaks: [],
                     highest_ever: 0,
-                    avg_top3: 0
+                    avg_top3: 0,
+                    max_capacity: MAX_CAPACITY
                 }
             });
         }
-        
-        const MAX_CAPACITY = 300;
-        
-        const peaks = topPeaks.map((record, index) => {
-            const timestamp = new Date(record.timestamp);
-            const date = timestamp.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit'
-            });
-            const day = timestamp.toLocaleDateString('en-US', { weekday: 'long' });
 
-            return {
-                rank: index + 1,
-                date: `${date} (${day})`,
-                count: record.current_count,
-                percentage: ((record.current_count / MAX_CAPACITY) * 100).toFixed(1)
-            };
+        // Group by day and find max count per day
+        const dailyPeaks = {};
+        
+        allRecords.forEach(record => {
+            const date = new Date(record.timestamp);
+            const dateKey = date.toISOString().split('T')[0];
+            
+            if (!dailyPeaks[dateKey] || record.current_count > dailyPeaks[dateKey].count) {
+                dailyPeaks[dateKey] = {
+                    date: dateKey,
+                    day: date.toLocaleDateString('en-US', { weekday: 'long' }),
+                    count: record.current_count
+                };
+            }
         });
-        
-        const highest_ever = topPeaks[0].current_count;
-        const avg_top3 = Math.round(
-            topPeaks.reduce((sum, r) => sum + r.current_count, 0) / topPeaks.length
-        );
-        
+
+        // Sort by count (highest first) and get top 3 unique days
+        const sortedDays = Object.values(dailyPeaks)
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 3);
+
+        const peaks = sortedDays.map((day, index) => ({
+            rank: index + 1,
+            date: `${day.date} (${day.day})`,
+            count: day.count,
+            percentage: ((day.count / MAX_CAPACITY) * 100).toFixed(1)
+        }));
+
+        const highest_ever = peaks.length > 0 ? peaks[0].count : 0;
+        const avg_top3 = peaks.length > 0 
+            ? Math.round(peaks.reduce((sum, p) => sum + p.count, 0) / peaks.length)
+            : 0;
+
         res.json({
             success: true,
             data: {
@@ -470,6 +481,7 @@ router.get('/top-peaks', async (req, res) => {
                 max_capacity: MAX_CAPACITY
             }
         });
+
     } catch (error) {
         console.error('Error getting top peaks:', error);
         res.status(500).json({
