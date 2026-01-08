@@ -108,6 +108,11 @@ export default function App() {
 
   // Manual adjustment function
 const handleManualAdjust = async (direction) => {
+  if (direction === 'IN' && occupancyData.current_inside >= MAX_CAPACITY) {
+    alert("Library is full! you cant add more people to the library."); 
+    return;
+  }
+
   try {
     const newCount = direction === 'IN' 
       ? occupancyData.current_inside + 1 
@@ -124,7 +129,6 @@ const handleManualAdjust = async (direction) => {
     });
     
     if (response.ok) {
-      // Update local state immediately
       setOccupancyData(prev => ({
         ...prev,
         current_inside: newCount,
