@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import sceBg from './sceBg.jpg'; 
 import { 
   LogIn, LogOut, Activity, 
   Settings, RotateCw, Calendar, Clock, Trophy, Medal
@@ -8,7 +9,7 @@ import {
 } from 'recharts';
 
 const API_URL = 'http://localhost:3000';
-const MAX_CAPACITY = 300;
+const MAX_CAPACITY = 300; // This is now just a recommendation reference
 
 export default function App() {
   // State for API data
@@ -21,8 +22,22 @@ export default function App() {
     avg_today: 0
   });
   const [trendData, setTrendData] = useState([]);
+  const [weeklyData, setWeeklyData] = useState({
+    week_start: '',
+    week_end: '',
+    days: []
+  });
   const [loading, setLoading] = useState(true);
+  const [activityLog, setActivityLog] = useState([]);
+  const [libraryClosed, setLibraryClosed] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('--:--');
+  const [topPeaksData, setTopPeaksData] = useState({
+    peaks: [],
+    highest_ever: 0,
+    avg_top3: 0,
+    max_capacity: 300
+});
 
   // Fetch data from API
   useEffect(() => {
@@ -51,6 +66,25 @@ export default function App() {
           setTrendData(chartData);
         }
 
+        // Fetch weekly data
+        const weeklyResponse = await fetch(`${API_URL}/api/occupancy/weekly`);
+        const weeklyResult = await weeklyResponse.json();
+        if (weeklyResult.success) {
+            setWeeklyData(weeklyResult.data);
+        }
+        // Fetch top peaks data
+        const peaksResponse = await fetch(`${API_URL}/api/occupancy/top-peaks`);
+        const peaksResult = await peaksResponse.json();
+        if (peaksResult.success) {
+            setTopPeaksData(peaksResult.data);
+        }
+        // Fetch recent activity
+        const activityResponse = await fetch(`${API_URL}/api/occupancy/recent`);
+        const activityResult = await activityResponse.json();
+        if (activityResult.success) {
+          setActivityLog(activityResult.data);
+        }
+
         // Update timestamp
         const now = new Date();
         setLastUpdated(now.toLocaleTimeString('en-US', { 
@@ -72,13 +106,46 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Manual adjustment function
+const handleManualAdjust = async (direction) => {
+  // REMOVED LIMIT CHECK: Users can now exceed MAX_CAPACITY
+  try {
+    const newCount = direction === 'IN' 
+      ? occupancyData.current_inside + 1 
+      : Math.max(0, occupancyData.current_inside - 1);
+    
+    const response = await fetch(`${API_URL}/api/occupancy/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        current_count: newCount,
+        direction: direction
+      })
+    });
+    
+    if (response.ok) {
+      setOccupancyData(prev => ({
+        ...prev,
+        current_inside: newCount,
+        total_in: direction === 'IN' ? prev.total_in + 1 : prev.total_in,
+        total_out: direction === 'OUT' ? prev.total_out + 1 : prev.total_out
+      }));
+    }
+  } catch (error) {
+    console.error('Failed to adjust count:', error);
+  }
+};
+
   // Calculate derived values
   const capacityPercent = Math.round((occupancyData.current_inside / MAX_CAPACITY) * 100);
   
   const getStatus = () => {
+    // Adjusted logic slightly to account for over-capacity
     if (capacityPercent < 50) return 'Low';
     if (capacityPercent < 80) return 'Moderate';
-    return 'High';
+    if (capacityPercent <= 100) return 'High';
+    return 'Over Capacity'; // New status for > 300
   };
 
   const getTrend = () => {
@@ -94,8 +161,96 @@ export default function App() {
   const chartData = trendData.length > 0 ? trendData : [];
 
   return (
-    <div className="min-h-screen bg-[#0B101A] text-white p-4 md:p-8 font-sans">
-      
+   <div 
+      className="min-h-screen bg-[#0B101A] text-white p-4 md:p-8 font-sans bg-cover bg-center bg-fixed bg-no-repeat"
+      style={{
+        backgroundImage: `linear-gradient(to bottom, rgba(11, 16, 26, 0.85), rgba(11, 16, 26, 0.9)), url(${sceBg})`
+      }}
+    >
+      {/* --- SETTINGS SIDE PANEL --- */}
+{showSettings && (
+  <div className="fixed inset-0 z-50 flex justify-end">
+    {/* Backdrop */}
+    <div 
+      className="absolute inset-0 bg-black/50" 
+      onClick={() => setShowSettings(false)}
+    ></div>
+    
+    {/* Panel */}
+    <div className="relative w-80 bg-[#111827] h-full border-l border-slate-700 p-6 overflow-y-auto">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-xl font-bold text-white">Admin Panel</h2>
+        <button 
+          onClick={() => setShowSettings(false)}
+          className="text-slate-400 hover:text-white text-2xl"
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Manual Adjustment Section */}
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-slate-400 mb-4">MANUAL_ADJUSTMENT</h3>
+        <p className="text-xs text-slate-500 mb-4">Manually adjust the current occupancy count</p>
+        
+        <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
+          <p className="text-slate-400 text-sm mb-2">Current Count</p>
+          <p className="text-4xl font-bold text-white">{occupancyData.current_inside}</p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => handleManualAdjust('OUT')}
+            className="flex-1 bg-red-600/20 hover:bg-red-600/30 border border-red-600/50 text-red-400 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+          >
+            <LogOut size={18} /> -1
+          </button>
+          <button
+            onClick={() => handleManualAdjust('IN')}
+            className="flex-1 bg-green-600/20 hover:bg-green-600/30 border border-green-600/50 text-green-400 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+          >
+            <LogIn size={18} /> +1
+          </button>
+        </div>
+      </div>
+{/* Library Status */}
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-slate-400 mb-4">LIBRARY_STATUS</h3>
+        <div 
+          className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition ${
+            libraryClosed 
+              ? 'bg-red-600/20 border-red-600/50' 
+              : 'bg-green-600/20 border-green-600/50'
+          }`}
+          onClick={() => setLibraryClosed(!libraryClosed)}
+        >
+          <span className={`font-medium ${libraryClosed ? 'text-red-400' : 'text-green-400'}`}>
+            {libraryClosed ? 'CLOSED' : 'OPEN'}
+          </span>
+          <div className={`w-12 h-6 rounded-full p-1 transition ${libraryClosed ? 'bg-red-600' : 'bg-green-600'}`}>
+            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${libraryClosed ? 'translate-x-6' : 'translate-x-0'}`}></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Capacity Setting */}
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-slate-400 mb-4">RECOMMENDED_CAPACITY</h3>
+        <div className="bg-slate-800/50 rounded-lg p-3">
+          <p className="text-white font-medium">{MAX_CAPACITY} people</p>
+        </div>
+      </div>
+
+      {/* API Info */}
+      <div>
+        <h3 className="text-sm font-medium text-slate-400 mb-4">API_ENDPOINT</h3>
+        <div className="bg-slate-800/50 rounded-lg p-3">
+          <p className="text-slate-300 text-sm break-all">{API_URL}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
       {/* --- HEADER --- */}
       <header className="flex justify-between items-center mb-8 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
@@ -106,43 +261,66 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-4 text-slate-400">
-          <span className="text-xs flex items-center gap-1"><RotateCw size={14}/> UPDATED {lastUpdated}</span>
-          <Settings size={20} className="hover:text-white cursor-pointer" />
+          <span 
+              className="text-xs flex items-center gap-1 cursor-pointer hover:text-white transition"
+              onClick={() => {
+                setLoading(true);
+                window.location.reload();
+              }}
+            >
+              <RotateCw size={14} className={loading ? 'animate-spin' : ''}/> UPDATED {lastUpdated}
+            </span>
+          <Settings size={20} className="hover:text-white cursor-pointer" onClick={() => setShowSettings(true)} />
         </div>
       </header>
-
-      {/* --- MAIN OCCUPANCY CARD --- */}
+{/* --- MAIN OCCUPANCY CARD --- */}
       <div className="bg-[#111827] rounded-2xl p-6 mb-6 border border-slate-800 relative overflow-hidden">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-             <div className="flex items-center gap-2 mb-1">
-                <Activity size={16} className="text-slate-400"/>
-                <span className="text-slate-400 font-medium">{getStatus()}</span>
-             </div>
-             <p className="text-slate-500 text-sm">Current Occupancy</p>
+        {libraryClosed ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <span className="text-5xl font-bold text-red-400 mb-2">CLOSED</span>
+            <p className="text-slate-500">The library is currently closed</p>
           </div>
-          <div className="text-right">
-            <div className="text-5xl font-bold text-white">{capacityPercent}%</div>
-            <div className="text-slate-400 text-sm">Capacity</div>
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity size={16} className={`text-slate-400 ${capacityPercent > 100 ? 'text-red-400 animate-pulse' : ''}`}/>
+                  <span className={`font-medium ${capacityPercent > 100 ? 'text-red-400' : 'text-slate-400'}`}>{getStatus()}</span>
+                </div>
+                <p className="text-slate-500 text-sm">Current Occupancy</p>
+              </div>
+              <div className="text-right">
+                <div className={`text-5xl font-bold ${capacityPercent > 100 ? 'text-red-400' : 'text-white'}`}>{capacityPercent}%</div>
+                <div className="text-slate-400 text-sm">Of Recommendation</div>
+              </div>
+            </div>
 
-        <div className="flex items-end gap-2 mb-4">
-          <span className="text-6xl font-bold text-white tracking-tighter">{occupancyData.current_inside}</span>
-          <span className="text-xl text-slate-500 mb-2">/ {MAX_CAPACITY}</span>
-          <span className="text-sm text-slate-500 mb-2 ml-2">Active Visitors</span>
-        </div>
+            <div className="flex items-end gap-2 mb-4">
+              <span className="text-6xl font-bold text-white tracking-tighter">{occupancyData.current_inside}</span>
+              <div className="flex flex-col mb-1 ml-2">
+                 <span className="text-sm text-slate-400 font-medium">Active Visitors</span>
+                 <span className="text-xs text-slate-500">Recommended: {MAX_CAPACITY}</span>
+              </div>
+            </div>
 
-        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-          <div 
-            className="bg-gradient-to-r from-blue-600 to-blue-400 h-full shadow-[0_0_15px_rgba(59,130,246,0.5)]"
-            style={{width: `${capacityPercent}%`}}
-          ></div>
-        </div>
-        <div className="flex justify-between text-xs text-slate-500 mt-2">
-          <span>0%</span>
-          <span>100%</span>
-        </div>
+            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div 
+                className={`h-full shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all duration-500 ${
+                  capacityPercent > 100 
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500' // Red if over capacity
+                    : 'bg-gradient-to-r from-blue-600 to-blue-400'
+                }`}
+                // Cap the visual width at 100% so it doesn't break layout
+                style={{width: `${Math.min(capacityPercent, 100)}%`}}
+              ></div>
+            </div>
+            <div className="flex justify-between text-xs text-slate-500 mt-2">
+              <span>0%</span>
+              <span>100% (Rec)</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* --- STATS GRID --- */}
@@ -181,7 +359,7 @@ export default function App() {
                   contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
                   itemStyle={{ color: '#60a5fa' }}
                 />
-                <ReferenceLine y={MAX_CAPACITY} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Max', fill: '#ef4444', fontSize: 10 }} />
+                <ReferenceLine y={MAX_CAPACITY} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Rec', fill: '#ef4444', fontSize: 10 }} />
                 <ReferenceLine y={occupancyData.avg_today} stroke="#f59e0b" strokeDasharray="3 3" />
                 <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVis)" />
               </AreaChart>
@@ -212,7 +390,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* --- NEW SECTION: TOP 3 BUSIEST TIMES EVER --- */}
+{/* --- NEW SECTION: TOP 3 BUSIEST TIMES EVER --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-[#111827] border border-slate-800 rounded-xl p-6">
           <div className="flex justify-between items-center mb-6">
@@ -226,39 +404,37 @@ export default function App() {
           </div>
 
           <div className="space-y-4">
-             {/* Rank 1 */}
-             <RankItem 
-               rank="1" date="2024-12-15 at 14:30" 
-               val="299" pct="99.7%" color="text-yellow-400" iconColor="bg-yellow-400/20 text-yellow-400"
-               barColor="bg-red-600"
-             />
-             {/* Rank 2 */}
-             <RankItem 
-               rank="2" date="2024-12-10 at 15:45" 
-               val="298" pct="99.3%" color="text-slate-300" iconColor="bg-slate-400/20 text-slate-300"
-               barColor="bg-red-500"
-             />
-             {/* Rank 3 */}
-             <RankItem 
-               rank="3" date="2024-12-08 at 13:20" 
-               val="297" pct="99.0%" color="text-orange-400" iconColor="bg-orange-600/20 text-orange-400"
-               barColor="bg-red-500"
-             />
+             {topPeaksData.peaks.length > 0 ? (
+               topPeaksData.peaks.map((peak, index) => (
+                 <RankItem 
+                   key={index}
+                   rank={peak.rank.toString()} 
+                   date={peak.date} 
+                   val={peak.count.toString()} 
+                   pct={`${peak.percentage}%`} 
+                   color={index === 0 ? "text-yellow-400" : index === 1 ? "text-slate-300" : "text-orange-400"} 
+                   iconColor={index === 0 ? "bg-yellow-400/20 text-yellow-400" : index === 1 ? "bg-slate-400/20 text-slate-300" : "bg-orange-600/20 text-orange-400"}
+                   barColor={index === 0 ? "bg-red-600" : "bg-red-500"}
+                 />
+               ))
+             ) : (
+               <div className="text-slate-500 text-center py-4">No peak data available</div>
+             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4 mt-6">
              <div className="bg-slate-800/30 p-4 rounded-lg">
                 <p className="text-xs text-slate-500 mb-1">Highest Ever</p>
-                <p className="text-xl font-bold text-red-400">299 / 300</p>
+                <p className="text-xl font-bold text-red-400">{topPeaksData.highest_ever} / {topPeaksData.max_capacity}</p>
              </div>
              <div className="bg-slate-800/30 p-4 rounded-lg">
                 <p className="text-xs text-slate-500 mb-1">Avg of Top 3</p>
-                <p className="text-xl font-bold text-white">298</p>
+                <p className="text-xl font-bold text-white">{topPeaksData.avg_top3}</p>
              </div>
           </div>
         </div>
         
-        {/* Placeholder for future content or just spacing */}
+        {/* Placeholder for future content */}
          <div className="bg-[#111827] border border-slate-800 rounded-xl p-6 flex flex-col justify-center items-center text-center opacity-50">
             <Activity size={48} className="text-slate-600 mb-4"/>
             <h3 className="text-lg font-bold text-slate-500">More Analytics Coming Soon</h3>
@@ -269,7 +445,7 @@ export default function App() {
       {/* --- BOTTOM SECTION: WEEKLY & LOGS --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Weekly Peak Hours Table */}
+       {/* Weekly Peak Hours Table */}
         <div className="lg:col-span-2 bg-[#111827] border border-slate-800 rounded-xl p-6">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -280,7 +456,7 @@ export default function App() {
           </div>
 
           <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 flex justify-between items-center mb-6 text-sm">
-            <span>28 / 12 / 2024</span>
+            <span>{weeklyData.week_start} - {weeklyData.week_end}</span>
             <Calendar size={16} className="text-slate-400"/>
           </div>
 
@@ -291,24 +467,51 @@ export default function App() {
             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> Freest Hour</span>
           </div>
 
-          <div className="space-y-4 text-sm">
-            <Row date="2024-12-22" day="Sunday" busy="3:00 PM" free="7:00 AM" />
-            <Row date="2024-12-23" day="Monday" busy="2:00 PM" free="6:00 AM" />
-            <Row date="2024-12-24" day="Tuesday" busy="1:00 PM" free="7:00 AM" />
-            <div className="grid grid-cols-4 py-2 text-slate-600 italic">
-               <span>2024-12-25</span><span>Wednesday</span><span>CLOSED</span><span>CLOSED</span>
-            </div>
-            <Row date="2024-12-26" day="Thursday" busy="3:00 PM" free="8:00 AM" />
-            <div className="bg-blue-900/20 -mx-2 px-2 py-2 rounded border-l-2 border-blue-500 grid grid-cols-4 items-center">
-               <span className="text-white font-medium">2024-12-28</span>
-               <span className="text-white">Saturday</span>
-               <span className="text-red-400 font-bold">2:00 PM</span>
-               <span className="text-green-400 font-bold">8:00 AM</span>
-            </div>
+          <div className="space-y-1 text-sm">
+            {weeklyData.days.length > 0 ? (
+              weeklyData.days.map((day, index) => {
+                const isToday = day.date === new Date().toISOString().split('T')[0];
+                const isClosed = !day.busiest_hour && !day.freest_hour;
+
+                if (isClosed) {
+                  return (
+                    <div key={index} className="grid grid-cols-4 py-2 text-slate-600 italic">
+                      <span>{day.date}</span>
+                      <span>{day.day}</span>
+                      <span>CLOSED</span>
+                      <span>CLOSED</span>
+                    </div>
+                  );
+                }
+
+                if (isToday) {
+                  return (
+                    <div key={index} className="bg-blue-900/20 -mx-2 px-2 py-2 rounded border-l-2 border-blue-500 grid grid-cols-4 items-center">
+                      <span className="text-white font-medium">{day.date}</span>
+                      <span className="text-white">{day.day}</span>
+                      <span className="text-red-400 font-bold">{day.busiest_hour}</span>
+                      <span className="text-green-400 font-bold">{day.freest_hour}</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <Row 
+                    key={index}
+                    date={day.date} 
+                    day={day.day} 
+                    busy={day.busiest_hour || '--'} 
+                    free={day.freest_hour || '--'} 
+                  />
+                );
+              })
+            ) : (
+              <div className="text-slate-500 text-center py-4">No weekly data available</div>
+            )}
           </div>
         </div>
 
-        {/* Activity Log */}
+      {/* Activity Log */}
         <div className="bg-[#111827] border border-slate-800 rounded-xl p-6">
           <div className="mb-6">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -318,11 +521,18 @@ export default function App() {
           </div>
           
           <div className="space-y-3">
-            <LogItem type="exit" time="10:32 PM" val="-2" />
-            <LogItem type="entry" time="10:29 PM" val="+2" />
-            <LogItem type="exit" time="10:26 PM" val="-1" />
-            <LogItem type="entry" time="10:21 PM" val="+3" />
-            <LogItem type="entry" time="10:18 PM" val="+1" />
+            {activityLog.length > 0 ? (
+              activityLog.map((activity, index) => (
+                <LogItem 
+                  key={index}
+                  type={activity.type} 
+                  time={activity.time} 
+                  val={activity.count_change} 
+                />
+              ))
+            ) : (
+              <div className="text-slate-500 text-center py-4">No recent activity</div>
+            )}
           </div>
         </div>
 
