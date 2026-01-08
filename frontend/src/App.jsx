@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import sceBg from './sceBg.jpg'; 
 import { 
   LogIn, LogOut, Activity, 
   Settings, RotateCw, Calendar, Clock, Trophy, Medal
@@ -165,7 +166,12 @@ const handleManualAdjust = async (direction) => {
   const chartData = trendData.length > 0 ? trendData : [];
 
   return (
-    <div className="min-h-screen bg-[#0B101A] text-white p-4 md:p-8 font-sans">
+   <div 
+      className="min-h-screen bg-[#0B101A] text-white p-4 md:p-8 font-sans bg-cover bg-center bg-fixed bg-no-repeat"
+      style={{
+        backgroundImage: `linear-gradient(to bottom, rgba(11, 16, 26, 0.85), rgba(11, 16, 26, 0.9)), url(${sceBg})`
+      }}
+    >
       {/* --- SETTINGS SIDE PANEL --- */}
 {showSettings && (
   <div className="fixed inset-0 z-50 flex justify-end">
