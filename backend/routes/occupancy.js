@@ -490,4 +490,65 @@ router.get('/top-peaks', async (req, res) => {
         });
     }
 });
+// GET /api/occupancy/export - Export data as CSV
+router.get('/export', async (req, res) => {
+    try {
+        const format = req.query.format || 'csv';
+
+        if (format !== 'csv') {
+            return res.status(400).json({
+                success: false,
+                error: 'Only CSV format is currently supported'
+            });
+        }
+
+        // Get all records sorted by newest first
+        const records = await Occupancy.find({
+            direction: { $exists: true, $ne: null }
+        }).sort({ timestamp: -1 });
+
+        if (records.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'No records found to export'
+            });
+        }
+
+        // Create CSV header
+        let csv = 'Date,Time,Direction,Count\n';
+
+        // Add each record
+        records.forEach(record => {
+            const timestamp = new Date(record.timestamp);
+            const date = timestamp.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const time = timestamp.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+            const direction = record.direction || 'N/A';
+            const count = record.current_count || 0;
+
+            csv += `${date},${time},${direction},${count}\n`;
+        });
+
+        // Set headers for file download
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=libflow-export.csv');
+        
+        res.send(csv);
+
+    } catch (error) {
+        console.error('Error exporting data:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
 module.exports = router;
+
