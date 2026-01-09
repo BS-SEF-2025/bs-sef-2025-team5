@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const occupancyRoutes = require('./routes/occupancy');
 
+const authRoutes = require('./routes/auth');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -14,6 +15,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/occupancy', occupancyRoutes);
+app.use('/api/auth', authRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
