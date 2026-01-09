@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import sceBg from './sceBg.jpg'; 
 import { 
   LogIn, LogOut, Activity, 
-  Settings, RotateCw, Calendar, Clock, Trophy, Medal
+  Settings, RotateCw, Calendar, Clock, Trophy, Medal, Download
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine 
@@ -136,6 +136,31 @@ const handleManualAdjust = async (direction) => {
     console.error('Failed to adjust count:', error);
   }
 };
+// Export CSV function
+const handleExportCSV = async () => {
+  try {
+    const response = await fetch(`${API_URL}/api/occupancy/export?format=csv`);
+    
+    if (!response.ok) {
+      alert('Failed to export data');
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'libflow-export.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Export failed:', error);
+    alert('Export failed');
+  }
+};
+
 
   // Calculate derived values
   const capacityPercent = Math.round((occupancyData.current_inside / MAX_CAPACITY) * 100);
@@ -240,7 +265,16 @@ const handleManualAdjust = async (direction) => {
           <p className="text-white font-medium">{MAX_CAPACITY} people</p>
         </div>
       </div>
-
+{/* Export Data */}
+      <div className="mb-8">
+        <h3 className="text-sm font-medium text-slate-400 mb-4">EXPORT_DATA</h3>
+        <button
+          onClick={handleExportCSV}
+          className="w-full bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/50 text-blue-400 font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+        >
+          <Download size={18} /> Download CSV
+        </button>
+      </div>
       {/* API Info */}
       <div>
         <h3 className="text-sm font-medium text-slate-400 mb-4">API_ENDPOINT</h3>
