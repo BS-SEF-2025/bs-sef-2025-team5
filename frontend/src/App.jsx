@@ -29,6 +29,12 @@ export default function App() {
   });
   const [loading, setLoading] = useState(true);
   const [activityLog, setActivityLog] = useState([]);
+
+  const [isAdminVerified, setIsAdminVerified] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminCode, setAdminCode] = useState('');
+  const [adminError, setAdminError] = useState('');
+
   const [libraryClosed, setLibraryClosed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('--:--');
@@ -136,6 +142,43 @@ const handleManualAdjust = async (direction) => {
     console.error('Failed to adjust count:', error);
   }
 };
+
+// Admin verification function
+const handleAdminVerify = async () => {
+  try {
+    setAdminError('');
+    
+    const response = await fetch(`${API_URL}/api/auth/verify-admin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: adminCode })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      setIsAdminVerified(true);
+      setShowAdminModal(false);
+      setShowSettings(true);
+      setAdminCode('');
+    } else {
+      setAdminError('Invalid admin code');
+    }
+  } catch (error) {
+    console.error('Verification failed:', error);
+    setAdminError('Verification failed');
+  }
+};
+
+// Handle Settings click
+const handleSettingsClick = () => {
+  if (isAdminVerified) {
+    setShowSettings(true);
+  } else {
+    setShowAdminModal(true);
+  }
+};
+
 // Export CSV function
 const handleExportCSV = async () => {
   try {
@@ -192,6 +235,60 @@ const handleExportCSV = async () => {
         backgroundImage: `linear-gradient(to bottom, rgba(11, 16, 26, 0.85), rgba(11, 16, 26, 0.9)), url(${sceBg})`
       }}
     >
+
+      {/* --- ADMIN VERIFICATION MODAL --- */}
+{showAdminModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center">
+    {/* Backdrop */}
+    <div 
+      className="absolute inset-0 bg-black/70" 
+      onClick={() => {
+        setShowAdminModal(false);
+        setAdminCode('');
+        setAdminError('');
+      }}
+    ></div>
+    
+    {/* Modal */}
+    <div className="relative bg-[#111827] border border-slate-700 rounded-xl p-6 w-80 shadow-2xl">
+      <h2 className="text-xl font-bold text-white mb-2">Admin Access</h2>
+      <p className="text-slate-400 text-sm mb-6">Enter admin code to access settings</p>
+      
+      <input
+        type="password"
+        value={adminCode}
+        onChange={(e) => setAdminCode(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && handleAdminVerify()}
+        placeholder="Enter admin code"
+        className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 mb-4"
+      />
+      
+      {adminError && (
+        <p className="text-red-400 text-sm mb-4">{adminError}</p>
+      )}
+      
+      <div className="flex gap-3">
+        <button
+          onClick={() => {
+            setShowAdminModal(false);
+            setAdminCode('');
+            setAdminError('');
+          }}
+          className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-4 rounded-lg transition"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleAdminVerify}
+          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition"
+        >
+          Verify
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       {/* --- SETTINGS SIDE PANEL --- */}
 {showSettings && (
   <div className="fixed inset-0 z-50 flex justify-end">
@@ -304,7 +401,7 @@ const handleExportCSV = async () => {
             >
               <RotateCw size={14} className={loading ? 'animate-spin' : ''}/> UPDATED {lastUpdated}
             </span>
-          <Settings size={20} className="hover:text-white cursor-pointer" onClick={() => setShowSettings(true)} />
+        <Settings size={20} className="hover:text-white cursor-pointer" onClick={handleSettingsClick} />
         </div>
       </header>
 {/* --- MAIN OCCUPANCY CARD --- */}
