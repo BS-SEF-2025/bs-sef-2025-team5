@@ -9,10 +9,11 @@ import {
 } from 'recharts';
 
 const API_URL = 'http://localhost:3000';
-const MAX_CAPACITY = 300; // This is now just a recommendation reference
+
 
 export default function App() {
   // State for API data
+  const [maxCapacity, setMaxCapacity] = useState(300);
   const [occupancyData, setOccupancyData] = useState({
     current_inside: 0,
     total_in: 0,
@@ -206,7 +207,7 @@ const handleExportCSV = async () => {
 
 
   // Calculate derived values
-  const capacityPercent = Math.round((occupancyData.current_inside / MAX_CAPACITY) * 100);
+  const capacityPercent = Math.round((occupancyData.current_inside / maxCapacity) * 100);
   
   const getStatus = () => {
     // Adjusted logic slightly to account for over-capacity
@@ -356,12 +357,18 @@ const handleExportCSV = async () => {
       </div>
 
       {/* Capacity Setting */}
-      <div className="mb-8">
-        <h3 className="text-sm font-medium text-slate-400 mb-4">RECOMMENDED_CAPACITY</h3>
-        <div className="bg-slate-800/50 rounded-lg p-3">
-          <p className="text-white font-medium">{MAX_CAPACITY} people</p>
+   <div className="bg-slate-800/50 rounded-lg p-3">
+          <label className="text-xs text-slate-500 mb-1 block">Set Max Limit:</label>
+          <div className="flex items-center gap-2">
+            <input 
+              type="number" 
+              value={maxCapacity}
+              onChange={(e) => setMaxCapacity(Number(e.target.value))}
+              className="bg-slate-900 text-white border border-slate-700 rounded px-2 py-1 w-full font-bold focus:outline-none focus:border-blue-500"
+            />
+            <span className="text-white font-medium text-sm">people</span>
+          </div>
         </div>
-      </div>
 {/* Export Data */}
       <div className="mb-8">
         <h3 className="text-sm font-medium text-slate-400 mb-4">EXPORT_DATA</h3>
@@ -431,7 +438,7 @@ const handleExportCSV = async () => {
               <span className="text-6xl font-bold text-white tracking-tighter">{occupancyData.current_inside}</span>
               <div className="flex flex-col mb-1 ml-2">
                  <span className="text-sm text-slate-400 font-medium">Active Visitors</span>
-                 <span className="text-xs text-slate-500">Recommended: {MAX_CAPACITY}</span>
+                 <span className="text-xs text-slate-500">Recommended: {maxCapacity}</span>
               </div>
             </div>
 
@@ -490,7 +497,7 @@ const handleExportCSV = async () => {
                   contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#fff' }}
                   itemStyle={{ color: '#60a5fa' }}
                 />
-                <ReferenceLine y={MAX_CAPACITY} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Rec', fill: '#ef4444', fontSize: 10 }} />
+                <ReferenceLine y={maxCapacity} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Rec', fill: '#ef4444', fontSize: 10 }} />
                 <ReferenceLine y={occupancyData.avg_today} stroke="#f59e0b" strokeDasharray="3 3" />
                 <Area type="monotone" dataKey="visitors" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorVis)" />
               </AreaChart>
