@@ -205,7 +205,30 @@ const handleExportCSV = async () => {
   }
 };
 
+// Export PDF function
+const handleExportPDF = async () => {
+  try {
+    const response = await fetch(`${API_URL}/api/occupancy/export?format=pdf`);
+    
+    if (!response.ok) {
+      alert('Failed to export PDF');
+      return;
+    }
 
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'libflow-report.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('PDF Export failed:', error);
+    alert('PDF Export failed');
+  }
+};
   // Calculate derived values
   const capacityPercent = Math.round((occupancyData.current_inside / maxCapacity) * 100);
   
@@ -370,15 +393,23 @@ const handleExportCSV = async () => {
           </div>
         </div>
 {/* Export Data */}
-      <div className="mb-8">
-        <h3 className="text-sm font-medium text-slate-400 mb-4">EXPORT_DATA</h3>
-        <button
-          onClick={handleExportCSV}
-          className="w-full bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/50 text-blue-400 font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
-        >
-          <Download size={18} /> Download CSV
-        </button>
-      </div>
+<div className="mb-8">
+  <h3 className="text-sm font-medium text-slate-400 mb-4">EXPORT_DATA</h3>
+  <div className="space-y-3">
+    <button
+      onClick={handleExportCSV}
+      className="w-full bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/50 text-blue-400 font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+    >
+      <Download size={18} /> Download CSV
+    </button>
+    <button
+      onClick={handleExportPDF}
+      className="w-full bg-purple-600/20 hover:bg-purple-600/30 border border-purple-600/50 text-purple-400 font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+    >
+      <Download size={18} /> Download PDF Report
+    </button>
+  </div>
+</div>
       {/* API Info */}
       <div>
         <h3 className="text-sm font-medium text-slate-400 mb-4">API_ENDPOINT</h3>
