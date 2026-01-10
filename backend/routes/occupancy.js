@@ -491,56 +491,144 @@ router.get('/top-peaks', async (req, res) => {
     }
 });
 // GET /api/occupancy/export - Export data as CSV
+// GET /api/occupancy/export - Export data as CSV or PDF
 router.get('/export', async (req, res) => {
     try {
         const format = req.query.format || 'csv';
 
-        if (format !== 'csv') {
-            return res.status(400).json({
-                success: false,
-                error: 'Only CSV format is currently supported'
-            });
-        }
+        // Get today's date range
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
 
-        // Get all records sorted by newest first
-        const records = await Occupancy.find({
-            direction: { $exists: true, $ne: null }
+        const todayRecords = await Occupancy.find({
+            timestamp: { $gte: today }
         }).sort({ timestamp: -1 });
 
-        if (records.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'No records found to export'
-            });
-        }
+        // Calculate today's stats
+        const total_in = todayRecords.filter(r => r.direction === 'IN').length;
+        const total_out = todayRecords.filter(r => r.direction === 'OUT').length;
+        const current_inside = todayRecords.length > 0 ? todayRecords[0].current_count || 0 : 0;
 
-        // Create CSV header
-        let csv = 'Date,Time,Direction,Count\n';
-
-        // Add each record
-        records.forEach(record => {
-            const timestamp = new Date(record.timestamp);
-            const date = timestamp.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit'
-            });
-            const time = timestamp.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            });
-            const direction = record.direction || 'N/A';
-            const count = record.current_count || 0;
-
-            csv += `${date},${time},${direction},${count}\n`;
+        // Find peak
+        let peak_count = 0;
+        let peak_hour = 'N/A';
+        todayRecords.forEach(record => {
+            if ((record.current_count || 0) > peak_count) {
+                peak_count = record.current_count;
+                const peakTime = new Date(record.timestamp);
+                peak_hour = peakTime.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            }
         });
 
-        // Set headers for file download
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', 'attachment; filename=libflow-export.csv');
-        
-        res.send(csv);
+        // Handle PDF format
+        if (format === 'pdf') {
+            const PDFDocument = require('pdfkit');
+            const doc = new PDFDocument({ margin: 50 });
+
+            // Set headers for PDF download
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', 'attachment; filename=libflow-report.pdf');
+
+            // Pipe PDF to response
+            doc.pipe(res);
+
+            // Title
+            doc.fontSize(24).fillColor('#1e40af').text('LibFlowAI Daily Report', { align: 'center' });
+            doc.moveDown();
+
+            // Date
+            const reportDate = new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            doc.fontSize(12).fillColor('#64748b').text(reportDate, { align: 'center' });
+            doc.moveDown(2);
+
+            // Divider line
+            doc.strokeColor('#e2e8f0').lineWidth(1)
+               .moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+            doc.moveDown(2);
+
+            // Stats section
+            doc.fontSize(16).fillColor('#334155').text('Today\'s Summary', { underline: true });
+            doc.moveDown();
+
+            // Stats table
+            const stats = [
+                { label: 'Current Occupancy', value: current_inside.toString() },
+                { label: 'Total Entries', value: total_in.toString() },
+                { label: 'Total Exits', value: total_out.toString() },
+                { label: 'Peak Count', value: peak_count.toString() },
+                { label: 'Peak Hour', value: peak_hour }
+            ];
+
+            stats.forEach(stat => {
+                doc.fontSize(12).fillColor('#64748b').text(stat.label + ':', { continued: true });
+                doc.fillColor('#0f172a').text('  ' + stat.value);
+                doc.moveDown(0.5);
+            });
+
+            doc.moveDown(2);
+
+            // Footer
+            doc.fontSize(10).fillColor('#94a3b8')
+               .text('Generated by LibFlowAI', { align: 'center' });
+            doc.text(`Report generated at ${new Date().toLocaleTimeString('en-US')}`, { align: 'center' });
+
+            // Finalize PDF
+            doc.end();
+            return;
+        }
+
+        // Handle CSV format
+        if (format === 'csv') {
+            const allRecords = await Occupancy.find({
+                direction: { $exists: true, $ne: null }
+            }).sort({ timestamp: -1 });
+
+            if (allRecords.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'No records found to export'
+                });
+            }
+
+            let csv = 'Date,Time,Direction,Count\n';
+
+            allRecords.forEach(record => {
+                const timestamp = new Date(record.timestamp);
+                const date = timestamp.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                });
+                const time = timestamp.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+                const direction = record.direction || 'N/A';
+                const count = record.current_count || 0;
+
+                csv += `${date},${time},${direction},${count}\n`;
+            });
+
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename=libflow-export.csv');
+            return res.send(csv);
+        }
+
+        // Invalid format
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid format. Use csv or pdf'
+        });
 
     } catch (error) {
         console.error('Error exporting data:', error);
@@ -550,5 +638,6 @@ router.get('/export', async (req, res) => {
         });
     }
 });
+
 module.exports = router;
 
